@@ -43,8 +43,9 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
     thread,
-    time::Duration,
 };
+
+use std::time::Duration;
 
 use crate::{notify::Notify, slot::Slot};
 
@@ -224,12 +225,7 @@ impl<T> Receiver<T> {
     /// ```
     #[inline]
     pub fn recv(self) -> Result<T, RecvError> {
-        self.recv_inner(|inner, state| {
-            thread::park();
-            *state = inner.state.load(Ordering::Acquire);
-            true
-        })
-        .map_err(|_| RecvError)
+        self.recv_inner(None).map_err(|_| RecvError)
     }
 
     /// Attempts to return a pending value on this receiver without blocking.
@@ -275,25 +271,7 @@ impl<T> Receiver<T> {
     /// this channel has been dropped, or if deadline is reached.
     #[cfg(not(loom))]
     pub fn recv_deadline(&mut self, deadline: Instant) -> Result<T, RecvTimeoutError> {
-        let result =
-            self.recv_inner(
-                |inner, state| match deadline.checked_duration_since(Instant::now()) {
-                    Some(duration) => {
-                        thread::park_timeout(duration);
-                        *state = inner.state.load(Ordering::Acquire);
-                        true
-                    }
-                    None => {
-                        let prev_state = inner.state.fetch_and(!WAITING, Ordering::Acquire);
-                        if State(prev_state).is_complete() | State(prev_state).is_closed() {
-                            *state = prev_state;
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                },
-            );
+        let result = self.recv_inner(Some(deadline));
 
         match result {
             Ok(_) | Err(RecvTimeoutError::Closed) => {
@@ -321,50 +299,56 @@ impl<T> Receiver<T> {
     pub fn recv_timeout(&mut self, timeout: Duration) -> Result<T, RecvTimeoutError> {
         match Instant::now().checked_add(timeout) {
             Some(deadline) => self.recv_deadline(deadline),
-            None => self
-                .recv_inner(|inner, state| {
-                    // waits until Sender sent a value (same Receiver::recv)
-                    // if return type of checked_add None, it will
-                    // overflow and wait indefinitely
-                    thread::park();
-                    *state = inner.state.load(Ordering::Acquire);
-                    true
-                })
-                .map_err(|_| RecvTimeoutError::Closed),
+            // waits until Sender sent a value (same Receiver::recv)
+            // if return type of checked_add None, it will
+            // overflow and wait indefinitely
+            None => self.recv_inner(None),
         }
     }
 
-    #[inline(always)]
-    fn recv_inner<F>(&self, f: F) -> Result<T, RecvTimeoutError>
-    where
-        F: Fn(&Arc<Inner<T>>, &mut usize) -> bool,
-    {
+    fn recv_inner(&self, deadline: Option<Instant>) -> Result<T, RecvTimeoutError> {
         if let Some(inner) = self.inner.as_ref() {
             let mut state = inner.state.load(Ordering::Acquire);
             loop {
                 if State(state).is_complete() {
-                    break unsafe { inner.consume_value() }.ok_or(RecvTimeoutError::Closed);
-                } else if State(state).is_closed() {
+                    unsafe { break inner.consume_value().ok_or(RecvTimeoutError::Closed) }
+                }
+
+                if State(state).is_closed() {
                     break Err(RecvTimeoutError::Closed);
                 }
 
                 if !State(state).is_waiting() {
-                    unsafe { inner.notify.set_current() };
+                    unsafe {
+                        inner.notify.set_current();
+                    }
                 }
 
-                match inner.state.compare_exchange_weak(
+                if let Err(actual) = inner.state.compare_exchange_weak(
                     state,
                     state | WAITING,
                     Ordering::Release,
                     Ordering::Acquire,
                 ) {
-                    Ok(_) => {
-                        if !f(inner, &mut state) {
+                    state = actual;
+                    continue;
+                }
+
+                match deadline {
+                    None => thread::park(),
+                    Some(d) => match d.checked_duration_since(Instant::now()) {
+                        Some(dur) => park_for(dur),
+                        None => {
+                            let prev = inner.state.fetch_and(!WAITING, Ordering::Acquire);
+                            if State(prev).is_complete() || State(prev).is_closed() {
+                                state = prev;
+                                continue;
+                            }
                             break Err(RecvTimeoutError::Timeout);
                         }
-                    }
-                    Err(actual) => state = actual,
+                    },
                 }
+                state = inner.state.load(Ordering::Acquire);
             }
         } else {
             Err(RecvTimeoutError::Closed)
@@ -536,4 +520,17 @@ impl fmt::Debug for State {
             .field("is_waiting", &self.is_waiting())
             .finish()
     }
+}
+
+#[cfg(not(loom))]
+#[inline]
+fn park_for(dur: Duration) {
+    std::thread::park_timeout(dur);
+}
+
+// dummy function for passing compile on loom environment
+#[cfg(loom)]
+#[inline]
+fn park_for(_dur: Duration) {
+    unreachable!("timed park is not supported under loom");
 }
