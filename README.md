@@ -9,7 +9,7 @@
 [docs-rs-badge]: https://img.shields.io/docsrs/sync-oneshot/latest
 [docs-rs-url]: https://docs.rs/sync-oneshot
 [licence-badge]: https://img.shields.io/github/license/locksmith-rs/sync-oneshot
-[licence-url]: https://github.com/locksmith-rs/sync-oneshot/blob/docs-readme/LICENSE
+[licence-url]: https://github.com/locksmith-rs/sync-oneshot/blob/main/LICENSE
 [actions-badge]: https://github.com/locksmith-rs/sync-oneshot/workflows/ci/badge.svg
 [actions-url]: https://github.com/locksmith-rs/sync-oneshot/actions?query=branch%3Amain+workflow%3ACI+
 
