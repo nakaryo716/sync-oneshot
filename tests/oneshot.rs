@@ -8,7 +8,7 @@ use std::time::Instant;
 #[cfg(not(loom))]
 use std::{thread, time::Duration};
 
-use sync_oneshot::{TryRecvError, channel};
+use sync_oneshot::{channel, TryRecvError};
 
 #[cfg(not(loom))]
 use sync_oneshot::RecvTimeoutError;

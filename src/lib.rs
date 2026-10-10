@@ -29,8 +29,8 @@
 #[cfg(loom)]
 use loom::{
     sync::{
-        Arc,
         atomic::{AtomicUsize, Ordering},
+        Arc,
     },
     thread,
 };
@@ -39,8 +39,8 @@ use std::{fmt, time::Instant};
 #[cfg(not(loom))]
 use std::{
     sync::{
-        Arc,
         atomic::{AtomicUsize, Ordering},
+        Arc,
     },
     thread,
 };

@@ -1,7 +1,8 @@
 [package]
 name = "sync-oneshot"
 version = "0.2.0"
-edition = "2024"
+edition = "2021"
+rust-version = "1.78"
 readme = "README.md"
 repository = "https://github.com/locksmith-rs/sync-oneshot.git"
 license = "MIT"
