@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 use std::{fmt::Debug, hint::black_box};
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 struct WrappingSender<S>(Option<S>);
 struct WrappingReceiver<R>(Option<R>);
