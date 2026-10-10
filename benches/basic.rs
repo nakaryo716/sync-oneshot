@@ -55,52 +55,6 @@ impl<T> Receiver<T> for WrappingReceiver<sync_oneshot::Receiver<T>> {
 
 /*
  *
- * ===== impl oneshot crate =====
- *
- */
-impl<T> Sender<T> for WrappingSender<oneshot::Sender<T>> {
-    type Error = oneshot::SendError<T>;
-
-    fn send(&mut self, val: T) -> Result<(), Self::Error> {
-        let sender = self.0.take().unwrap();
-        sender.send(val)
-    }
-}
-
-impl<T> Receiver<T> for WrappingReceiver<oneshot::Receiver<T>> {
-    type Error = oneshot::RecvError;
-
-    fn recv(&mut self) -> Result<T, Self::Error> {
-        let receiver = self.0.take().unwrap();
-        receiver.recv()
-    }
-}
-
-/*
- *
- * ===== impl tokio =====
- *
- */
-impl<T> Sender<T> for WrappingSender<tokio::sync::oneshot::Sender<T>> {
-    type Error = T;
-
-    fn send(&mut self, val: T) -> Result<(), Self::Error> {
-        let sender = self.0.take().unwrap();
-        sender.send(val)
-    }
-}
-
-impl<T> Receiver<T> for WrappingReceiver<tokio::sync::oneshot::Receiver<T>> {
-    type Error = tokio::sync::oneshot::error::RecvError;
-
-    fn recv(&mut self) -> Result<T, Self::Error> {
-        let receiver = self.0.take().unwrap();
-        receiver.blocking_recv()
-    }
-}
-
-/*
- *
  *
  *===== each crate function =====
  *
@@ -117,29 +71,5 @@ fn sync_oneshot(c: &mut Criterion) {
     });
 }
 
-fn oneshot(c: &mut Criterion) {
-    c.bench_function("oneshot-basic", |b| {
-        b.iter(|| {
-            let (tx, rx) = oneshot::channel();
-            let tx = WrappingSender(Some(tx));
-            let rx = WrappingReceiver(Some(rx));
-
-            bench_function(tx, rx, 5);
-        });
-    });
-}
-
-fn tokio(c: &mut Criterion) {
-    c.bench_function("tokio-basic", |b| {
-        b.iter(|| {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            let tx = WrappingSender(Some(tx));
-            let rx = WrappingReceiver(Some(rx));
-
-            bench_function(tx, rx, 5);
-        });
-    });
-}
-
-criterion_group!(basic, sync_oneshot, oneshot, tokio);
+criterion_group!(basic, sync_oneshot);
 criterion_main!(basic);

@@ -41,52 +41,6 @@ impl<T> Receiver<T> for WrappingReceiver<sync_oneshot::Receiver<T>> {
     }
 }
 
-/*
- *
- * ===== impl oneshot crate =====
- *
- */
-impl<T> Sender<T> for WrappingSender<oneshot::Sender<T>> {
-    type Error = oneshot::SendError<T>;
-
-    fn send(&mut self, val: T) -> Result<(), Self::Error> {
-        let sender = self.0.take().unwrap();
-        sender.send(val)
-    }
-}
-
-impl<T> Receiver<T> for WrappingReceiver<oneshot::Receiver<T>> {
-    type Error = oneshot::RecvError;
-
-    fn recv(&mut self) -> Result<T, Self::Error> {
-        let receiver = self.0.take().unwrap();
-        receiver.recv()
-    }
-}
-
-/*
- *
- * ===== impl tokio =====
- *
- */
-impl<T> Sender<T> for WrappingSender<tokio::sync::oneshot::Sender<T>> {
-    type Error = T;
-
-    fn send(&mut self, val: T) -> Result<(), Self::Error> {
-        let sender = self.0.take().unwrap();
-        sender.send(val)
-    }
-}
-
-impl<T> Receiver<T> for WrappingReceiver<tokio::sync::oneshot::Receiver<T>> {
-    type Error = tokio::sync::oneshot::error::RecvError;
-
-    fn recv(&mut self) -> Result<T, Self::Error> {
-        let receiver = self.0.take().unwrap();
-        receiver.blocking_recv()
-    }
-}
-
 fn run_bench<S, R, F>(c: &mut Criterion, name: &str, create_chan: F)
 where
     S: Sender<i32>,
@@ -130,19 +84,5 @@ fn sync_oneshot_thread(c: &mut Criterion) {
     });
 }
 
-fn oneshot_thread(c: &mut Criterion) {
-    run_bench(c, "oneshot-thread", || {
-        let (tx, rx) = oneshot::channel::<i32>();
-        (WrappingSender(Some(tx)), WrappingReceiver(Some(rx)))
-    });
-}
-
-fn tokio_thread(c: &mut Criterion) {
-    run_bench(c, "tokio-thread", || {
-        let (tx, rx) = tokio::sync::oneshot::channel::<i32>();
-        (WrappingSender(Some(tx)), WrappingReceiver(Some(rx)))
-    });
-}
-
-criterion_group!(thread, sync_oneshot_thread, oneshot_thread, tokio_thread);
+criterion_group!(thread, sync_oneshot_thread);
 criterion_main!(thread);
